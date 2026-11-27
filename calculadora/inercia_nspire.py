@@ -861,9 +861,13 @@ def compuesta():
                ["Agregar figura", "Deshacer la ultima", "RESOLVER paso a paso", "Ver dibujo",
                 "Ver lista de piezas", "Volver al menu"])
     if k == 0:
-      q = nueva(P, modo)
-      if q:
-        P.append(q)
+      como = elegir("Como ubicas la figura nueva?",
+                    ["En un vertice de la figura", "Con coordenadas (x, y)"], modo)
+      if como >= 0:
+        modo = como
+        q = nueva(P, como)
+        if q:
+          P.append(q)
     elif k == 1 and len(P) > 1:
       P.pop()
     elif k == 2:
