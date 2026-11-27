@@ -1,5 +1,6 @@
 # MOMENTOS DE INERCIA - TI-Nspire CX II (Python)
 # 1 Formulario  2 Figura compuesta (paso a paso)  3 Mohr directo
+# Se maneja con flechas + enter; esc = volver
 from ti_draw import *
 from ti_system import *
 # =============================================================================
@@ -383,9 +384,6 @@ def pasos_compuesta(piezas):
 
 
 # ---------- formulario (dibujos de la hoja) ----------
-def esperar():
-  while get_key()=="":
-    pass
 
 def ejes(ox,oy):
   set_color(0,0,0)
@@ -554,34 +552,137 @@ def texto(tit,ls):
       clear();y=20
 
 
-# =============================================================================
-#  INTERFAZ TI-NSPIRE  (menus en la consola + dibujos con ti_draw)
-# =============================================================================
-def num(msg, defecto=None):
-  while True:
-    s = input(msg + ("" if defecto is None else " [" + str(defecto) + "]") + ": ")
-    if s == "" and defecto is not None:
-      return defecto
-    try:
-      return float(eval(s))
-    except:
-      print(" Numero no valido")
 
-def opc(msg, n, defecto=None):
-  # devuelve un entero entre 0 y n
-  while True:
-    s = input(msg + ("" if defecto is None else " [" + str(defecto) + "]") + ": ")
-    if s == "" and defecto is not None:
-      return defecto
-    try:
-      k = int(s)
-      if 0 <= k <= n:
-        return k
-    except:
-      pass
-    print(" Opcion no valida (0-" + str(n) + ")")
+# =============================================================================
+#  INTERFAZ TI-NSPIRE: todo dentro de la pantalla grafica
+#  flechas + enter para elegir, esc para volver
+# =============================================================================
+def esperar():
+  return get_key(1)
 
-def vista(piezas, cand=None, titulo="", numeros=True, res=None):
+def cab(t):
+  clear()
+  set_color(0, 0, 150)
+  draw_text(4, 16, t)
+  set_color(0, 0, 0)
+
+def pie(t):
+  set_color(110, 110, 110)
+  draw_text(4, 210, t)
+  set_color(0, 0, 0)
+
+def elegir(tit, items, sel=0):
+  # menu con flechas; devuelve el indice o -1 (esc)
+  top = 0
+  N = 9
+  while True:
+    cab(tit)
+    if sel < top:
+      top = sel
+    if sel >= top + N:
+      top = sel - N + 1
+    for i in range(top, min(len(items), top + N)):
+      y = 40 + (i - top) * 18
+      if i == sel:
+        set_color(200, 220, 255)
+        fill_rect(0, y - 14, 318, 18)
+        set_color(0, 0, 0)
+      draw_text(6, y, str(i + 1) + ". " + items[i])
+    pie("flechas + enter    esc = volver")
+    k = get_key(1)
+    if k == "up":
+      sel = (sel - 1) % len(items)
+    elif k == "down":
+      sel = (sel + 1) % len(items)
+    elif k == "enter":
+      return sel
+    elif k == "esc":
+      return -1
+    elif len(k) == 1 and k in "123456789" and int(k) <= len(items):
+      return int(k) - 1
+
+def leer(msg, defecto=None):
+  # escribe un numero (se permiten + - * / ^ ( ) pi); None si esc
+  s = ""
+  err = ""
+  ult = ""
+  while True:
+    cab(msg)
+    draw_rect(8, 50, 300, 28)
+    draw_text(14, 70, s + "_")
+    set_color(200, 0, 0)
+    draw_text(8, 100, err)
+    set_color(0, 0, 0)
+    if defecto is not None:
+      draw_text(8, 125, "Enter vacio = " + f(defecto))
+    set_color(110, 110, 110)
+    draw_text(8, 185, "tecla: " + ult)
+    pie("enter=ok  del=borrar  esc=cancelar")
+    k = get_key(1)
+    ult = k
+    err = ""
+    if k == "enter":
+      if s == "" and defecto is not None:
+        return defecto
+      try:
+        return float(eval(s.replace("^", "**")))
+      except:
+        err = "No es un numero valido"
+    elif k == "del" or k == "clear":
+      s = s[:-1]
+    elif k == "esc":
+      return None
+    elif k in ("−", "(-)", "neg", "-"):
+      s += "-"
+    elif k in ("π", "pi"):
+      s += "pi"
+    elif k in ("EE", "ee", "E"):
+      s += "e"
+    elif k in ("×", "*"):
+      s += "*"
+    elif k in ("÷", "/"):
+      s += "/"
+    elif k == "^":
+      s += "^"
+    elif len(k) == 1 and k in "0123456789.+()":
+      s += k
+
+def partir(t, n=40):
+  out = []
+  while len(t) > n:
+    out.append(t[:n])
+    t = "  " + t[n:]
+  out.append(t)
+  return out
+
+def ver_texto(tit, lineas):
+  L = []
+  for s in lineas:
+    if len(s) > 30 and s.strip("=") == "":
+      s = "-" * 30
+    L += partir(s)
+  N = 10
+  pag = 0
+  tot = max(1, (len(L) + N - 1) // N)
+  while True:
+    cab(tit + "  (" + str(pag + 1) + "/" + str(tot) + ")")
+    for i in range(N):
+      j = pag * N + i
+      if j < len(L):
+        draw_text(4, 38 + i * 17, L[j])
+    pie("abajo/enter=sigue  arriba=atras  esc=salir")
+    k = get_key(1)
+    if k in ("down", "enter", "right"):
+      if pag + 1 < tot:
+        pag += 1
+      elif k == "enter":
+        return
+    elif k in ("up", "left"):
+      pag = max(0, pag - 1)
+    elif k == "esc":
+      return
+
+def vista(piezas, cand=None, titulo="", numeros=True, res=None, abajo="[tecla]"):
   G = [calcular(p) for p in piezas]
   gc = calcular(cand) if cand else None
   pts = []
@@ -590,35 +691,34 @@ def vista(piezas, cand=None, titulo="", numeros=True, res=None):
   xs = [q[0] for q in pts]
   ys = [q[1] for q in pts]
   x0, x1, y0, y1 = min(xs), max(xs), min(ys), max(ys)
-  s = min(290.0 / max(x1 - x0, 1e-9), 170.0 / max(y1 - y0, 1e-9))
-  ox = 14 + (290 - (x1 - x0) * s) / 2
-  oy = 200 - (170 - (y1 - y0) * s) / 2
+  s = min(280.0 / max(x1 - x0, 1e-9), 150.0 / max(y1 - y0, 1e-9))
+  ox = 19 + (280 - (x1 - x0) * s) / 2
+  oy = 185 - (150 - (y1 - y0) * s) / 2
 
   def T(x, y):
     return int(ox + (x - x0) * s), int(oy - (y - y0) * s)
 
-  def poly(P, rgb, relleno):
+  def poly(P, rgb):
     X = [T(x, y)[0] for (x, y) in P]
     Y = [T(x, y)[1] for (x, y) in P]
-    if relleno:
-      set_color(rgb[0], rgb[1], rgb[2])
-      fill_poly(X, Y)
+    set_color(rgb[0], rgb[1], rgb[2])
+    fill_poly(X, Y)
     set_color(40, 80, 125)
     draw_poly(X, Y)
 
-  clear()
+  cab(titulo)
   for i in range(len(piezas)):
     if not piezas[i]["hueco"]:
-      poly(G[i]["P"], (150, 185, 230), True)
+      poly(G[i]["P"], (150, 185, 230))
   for i in range(len(piezas)):
     if piezas[i]["hueco"]:
-      poly(G[i]["P"], (255, 255, 255), True)
+      poly(G[i]["P"], (255, 255, 255))
   ax, ay = T(0, 0)
-  set_color(120, 120, 120)
+  set_color(150, 150, 150)
   draw_line(0, ay, 318, ay)
-  draw_line(ax, 0, ax, 212)
+  draw_line(ax, 22, ax, 196)
   if gc:
-    poly(gc["P"], (240, 160, 90), True)
+    poly(gc["P"], (240, 160, 90))
     set_color(200, 90, 0)
     for j in range(len(gc["V"])):
       px, py = T(gc["V"][j][1][0], gc["V"][j][1][1])
@@ -637,136 +737,167 @@ def vista(piezas, cand=None, titulo="", numeros=True, res=None):
     set_color(200, 0, 0)
     fill_circle(px, py, 4)
     draw_text(px + 6, py - 4, "C")
-  set_color(0, 0, 150)
-  draw_text(2, 14, titulo)
-  set_color(0, 0, 0)
-  draw_text(230, 211, "[tecla]")
-  esperar()
+  pie(abajo)
 
 def elegir_fig():
-  print("--- FIGURA ---")
-  for i in range(len(FIG)):
-    print(i + 1, FIG[i][1], FIG[i][2])
-  print("0 Cancelar")
-  k = opc("Figura", len(FIG))
-  return None if k == 0 else FIG[k - 1][0]
+  k = elegir("Que figura agregas?", [q[1] + "  (" + q[2] + ")" if q[2] else q[1] for q in FIG])
+  return None if k < 0 else FIG[k][0]
 
 def medidas(clave):
   if clave == "poligono":
-    n = int(num("Cuantos vertices"))
-    return [(num(" v" + str(i + 1) + " x"), num(" v" + str(i + 1) + " y")) for i in range(n)]
-  return [num(" " + AYUDA_PAR.get(q, q)) for q in params_fig(clave)]
+    n = leer("Cuantos vertices tiene?")
+    if n is None or n < 3:
+      return None
+    P = []
+    for i in range(int(n)):
+      x = leer("Vertice " + str(i + 1) + ": x")
+      if x is None:
+        return None
+      y = leer("Vertice " + str(i + 1) + ": y")
+      if y is None:
+        return None
+      P.append((x, y))
+    return P
+  d = []
+  for q in params_fig(clave):
+    v = leer(nombre_fig(clave) + ": " + AYUDA_PAR.get(q, q))
+    if v is None:
+      return None
+    d.append(v)
+  return d
 
-def punto(p, msg):
+def punto(piezas, p, msg):
+  colocar(p)
+  vista(piezas, p, "Puntos naranja de la figura nueva")
+  esperar()
   V = calcular(p)["V"]
-  for j in range(len(V)):
-    print(" ", j + 1, "p" + str(j + 1), V[j][0])
-  return opc(msg, len(V), 1) - 1
+  k = elegir(msg, ["p" + str(j + 1) + " = " + V[j][0] for j in range(len(V))])
+  return k
 
 def ajustar(piezas, p):
   while True:
     colocar(p)
-    vista(piezas, p, "Vista previa (naranja)")
-    print(describir(p))
-    print("Enter=aceptar 1=espejo h 2=espejo v")
-    print("3=girar 90  4=hueco si/no")
-    print("5=otro punto  6=medidas  0=cancelar")
-    k = opc("Opcion", 6, 9)
-    if k == 9:
+    vista(piezas, p, describir(p)[:44], abajo="ent=OK 1=esp.h 2=esp.v 3=gira 4=hueco")
+    set_color(110, 110, 110)
+    draw_text(4, 196, "5=otro punto 6=medidas esc=cancelar")
+    k = get_key(1)
+    if k == "enter":
       return p
-    if k == 0:
+    if k == "esc":
       return None
-    if k == 1:
+    if k == "1":
       p["eh"] = not p["eh"]
-    elif k == 2:
+    elif k == "2":
       p["ev"] = not p["ev"]
-    elif k == 3:
+    elif k == "3":
       p["giro"] = (p["giro"] + 90) % 360
-    elif k == 4:
+    elif k == "4":
       p["hueco"] = not p["hueco"]
-    elif k == 5 and p["ancla"] is not None:
-      p["ancla"] = punto(p, "Punto")
-    elif k == 6:
-      p["d"] = medidas(p["clave"])
-      if p["ancla"] is not None and p["ancla"] >= len(calcular(p)["V"]):
-        p["ancla"] = 0
+    elif k == "5" and p["ancla"] is not None:
+      a = punto(piezas, p, "Que punto va ahi?")
+      if a >= 0:
+        p["ancla"] = a
+    elif k == "6":
+      d = medidas(p["clave"])
+      if d is not None:
+        p["d"] = d
+        if p["ancla"] is not None and p["ancla"] >= len(calcular(p)["V"]):
+          p["ancla"] = 0
 
 def nueva(piezas, modo, primera=False):
-  if modo == 1 and not primera:
+  if modo == 0 and not primera:
     V = lista_vertices(piezas)
-    vista(piezas, None, "Vertices (numeros morados)")
-    for k in range(len(V)):
-      print(k + 1, "(" + f(V[k][0]) + "," + f(V[k][1]) + ")")
-    k = opc("Vertice (0=cancelar)", len(V))
-    if k == 0:
+    vista(piezas, None, "Mira el numero del vertice", abajo="[tecla] para elegirlo")
+    esperar()
+    k = elegir("En que vertice va?", ["(" + f(V[i][0]) + ", " + f(V[i][1]) + ")"
+                                      for i in range(len(V))])
+    if k < 0:
       return None
-    dx = num("correr en x", 0)
-    dy = num("correr en y", 0)
+    dx = leer("Correr desde el vertice en x", 0.0)
+    if dx is None:
+      return None
+    dy = leer("Correr desde el vertice en y", 0.0)
+    if dy is None:
+      return None
   cl = elegir_fig()
   if cl is None:
     return None
-  p = nueva_pieza(cl, medidas(cl))
+  d = medidas(cl)
+  if d is None:
+    return None
+  p = nueva_pieza(cl, d)
   if primera:
     p["ancla"], p["destino"] = None, (0.0, 0.0)
-  elif modo == 1:
-    p["ancla"], p["destino"] = 0, (V[k - 1][0] + dx, V[k - 1][1] + dy)
-    colocar(p)
-    vista(piezas, p, "Puntos de la figura nueva")
-    p["ancla"] = punto(p, "Punto que va en el vertice " + str(k))
+  elif modo == 0:
+    p["ancla"], p["destino"] = 0, (V[k][0] + dx, V[k][1] + dy)
+    a = punto(piezas, p, "Que punto va en el vertice " + str(k + 1) + "?")
+    if a < 0:
+      return None
+    p["ancla"] = a
   else:
-    colocar(p)
-    vista(piezas, p, "Puntos de la figura nueva")
-    p["ancla"] = punto(p, "Punto a ubicar")
-    p["destino"] = (num("x"), num("y"))
+    a = punto(piezas, p, "Que punto vas a ubicar?")
+    if a < 0:
+      return None
+    p["ancla"] = a
+    x = leer("Coordenada x de ese punto")
+    if x is None:
+      return None
+    y = leer("Coordenada y de ese punto")
+    if y is None:
+      return None
+    p["destino"] = (x, y)
   return ajustar(piezas, p)
 
 def compuesta():
-  print("1 Con vertices  2 A mano (x,y)")
-  modo = opc("Modo (0=volver)", 2, 1)
-  if modo == 0:
+  modo = elegir("Figura compuesta", ["Con vertices (pegar figuras)", "A mano (coordenadas x, y)"])
+  if modo < 0:
     return
-  print("1a figura: esquina inf-izq en (0,0)")
   p = nueva([], modo, True)
   if p is None:
     return
   P = [p]
   while True:
-    print("--- FIGURA COMPUESTA ---")
-    for i in range(len(P)):
-      print(i + 1, describir(P[i]))
-    print("1 Agregar  2 Deshacer  3 RESOLVER")
-    print("4 Ver dibujo  0 Volver")
-    k = opc("Opcion", 4, 1)
-    if k == 1:
+    k = elegir("Figura compuesta: " + str(len(P)) + " pieza(s)",
+               ["Agregar figura", "Deshacer la ultima", "RESOLVER paso a paso", "Ver dibujo",
+                "Ver lista de piezas", "Volver al menu"])
+    if k == 0:
       q = nueva(P, modo)
       if q:
         P.append(q)
-    elif k == 2 and len(P) > 1:
+    elif k == 1 and len(P) > 1:
       P.pop()
-    elif k == 3:
+    elif k == 2:
       G, T = resolver(P)
+      if abs(T["A"]) < 1e-12:
+        ver_texto("Error", ["El area total es 0. Revisa los huecos."])
+        continue
       m = mohr(T["IX"], T["IY"], T["IXY"])
-      vista(P, None, "X=" + f(T["X"]) + " Y=" + f(T["Y"]), False, (T["X"], T["Y"]))
+      vista(P, None, "X=" + f(T["X"]) + "  Y=" + f(T["Y"]), False, (T["X"], T["Y"]))
+      esperar()
       dib_mohr(T["IX"], T["IY"], T["IXY"], m)
-      for s in pasos_compuesta(P):
-        print(s)
-      input("Fin. Enter...")
-    elif k == 4:
+      esperar()
+      ver_texto("Paso a paso", pasos_compuesta(P))
+    elif k == 3:
       vista(P, None, "Figura compuesta")
-    elif k == 0:
-      if opc("Seguro? 1=si 0=no", 1, 0) == 1:
+      esperar()
+    elif k == 4:
+      ver_texto("Piezas", [str(i + 1) + ". " + describir(P[i]) for i in range(len(P))])
+    elif k in (5, -1):
+      if elegir("Salir? Se pierde el dibujo", ["No, seguir", "Si, salir"]) == 1:
         return
 
 def dib_mohr(Ix, Iy, Ixy, m):
   C, R = m["C"], m["R"]
   lo = min(0, C - R)
-  s = min(280.0 / max(C + R - lo, 1e-9), 85.0 / max(R, 1e-9))
+  s = min(280.0 / max(C + R - lo, 1e-9), 80.0 / max(R, 1e-9))
+
   def T(x, y):
-    return int(20 + (x - lo) * s), int(110 - y * s)
-  clear()
-  set_color(120, 120, 120)
-  draw_line(0, 110, 318, 110)
-  draw_line(T(0, 0)[0], 15, T(0, 0)[0], 212)
+    return int(20 + (x - lo) * s), int(112 - y * s)
+
+  cab("Mohr  C=" + f(C) + "  R=" + f(R))
+  set_color(150, 150, 150)
+  draw_line(0, 112, 318, 112)
+  draw_line(T(0, 0)[0], 22, T(0, 0)[0], 200)
   cx, cy = T(C, 0)
   set_color(40, 80, 125)
   draw_circle(cx, cy, max(int(R * s), 1))
@@ -791,57 +922,50 @@ def dib_mohr(Ix, Iy, Ixy, m):
     a, b = T(m["Iu"], m["Iuv"])
     fill_circle(a, b, 3)
     draw_text(a + 4, b - 2, "U")
-  set_color(0, 0, 150)
-  draw_text(2, 14, "Mohr C=" + f(C) + " R=" + f(R))
-  set_color(0, 0, 0)
-  draw_text(230, 211, "[tecla]")
-  esperar()
+  pie("Imax=" + f(m["Imax"]) + " Imin=" + f(m["Imin"]) + " tp=" + f(m["tp"]))
 
 def mohr_directo():
-  print("MOHR DIRECTO")
-  Ix = num("Ix")
-  Iy = num("Iy")
-  Ixy = num("Ixy")
+  Ix = leer("Mohr directo: Ix")
+  if Ix is None:
+    return
+  Iy = leer("Mohr directo: Iy")
+  if Iy is None:
+    return
+  Ixy = leer("Mohr directo: Ixy")
+  if Ixy is None:
+    return
   th = None
-  if opc("Iu,Iv,Iuv para un angulo? 1=si 0=no", 1, 0) == 1:
-    th = num("theta (grados)")
+  if elegir("Calcular Iu, Iv, Iuv para un angulo?", ["No", "Si"]) == 1:
+    th = leer("Angulo theta en grados (antihorario)")
   m = mohr(Ix, Iy, Ixy, th)
   dib_mohr(Ix, Iy, Ixy, m)
-  for s in pasos_mohr(Ix, Iy, Ixy, th):
-    print(s)
-  input("Enter...")
+  esperar()
+  ver_texto("Mohr paso a paso", pasos_mohr(Ix, Iy, Ixy, th))
 
 def formulario():
+  sel = 0
   while True:
-    print("--- FORMULARIO ---")
-    for i in range(len(L)):
-      print(i + 1, L[i][0])
-    k = opc("Figura (0=volver)", len(L))
-    if k == 0:
+    k = elegir("Formulario", [q[0] for q in L], sel)
+    if k < 0:
       return
-    t, d, fs = L[k - 1]
-    clear()
-    set_color(0, 0, 150)
-    draw_text(5, 15, t)
+    sel = k
+    t, d, fs = L[k]
+    cab(t)
     d()
-    set_color(0, 0, 0)
-    draw_text(230, 211, "[tecla]")
+    pie("[tecla] = ver formulas")
     esperar()
-    texto(t, fs + ([] if k == len(L) else COM))
-    esperar()
+    ver_texto(t, fs + ([] if k == len(L) - 1 else COM))
 
+sel = 0
 while True:
-  print("=== MOMENTOS DE INERCIA ===")
-  print("1 Formulario")
-  print("2 Figura compuesta")
-  print("3 Mohr directo")
-  print("0 Salir")
-  k = opc("Opcion", 3)
-  if k == 1:
-    formulario()
-  elif k == 2:
-    compuesta()
-  elif k == 3:
-    mohr_directo()
-  else:
+  k = elegir("MOMENTOS DE INERCIA", ["Formulario", "Figura compuesta (paso a paso)",
+                                     "Mohr directo", "Salir"], sel)
+  if k < 0 or k == 3:
     break
+  sel = k
+  if k == 0:
+    formulario()
+  elif k == 1:
+    compuesta()
+  else:
+    mohr_directo()
