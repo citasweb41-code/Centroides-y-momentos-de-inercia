@@ -1,0 +1,34 @@
+name: Generar inercia.tns (TI-Nspire CX II)
+
+on:
+  push:
+    paths:
+      - "calculadora/inercia_nspire.py"
+      - ".github/workflows/tns.yml"
+  workflow_dispatch:
+
+jobs:
+  tns:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+
+      - name: Instalar zlib
+        run: sudo apt-get update && sudo apt-get install -y zlib1g-dev
+
+      - name: Compilar Luna (convertidor .py -> .tns)
+        run: |
+          git clone --depth 1 https://github.com/ndless-nspire/Luna.git /tmp/luna
+          make -C /tmp/luna
+
+      - name: Convertir el programa
+        run: |
+          cp calculadora/inercia_nspire.py /tmp/inercia.py
+          /tmp/luna/luna /tmp/inercia.py inercia.tns
+          ls -l inercia.tns
+
+      - name: Publicar inercia.tns para descargar
+        uses: actions/upload-artifact@v4
+        with:
+          name: inercia-tns
+          path: inercia.tns
