@@ -553,6 +553,7 @@ def texto(tit,ls):
 
 
 
+
 # =============================================================================
 #  INTERFAZ TI-NSPIRE: todo dentro de la pantalla grafica
 #  flechas + enter para elegir, esc para volver
@@ -875,12 +876,7 @@ def compuesta():
       if abs(T["A"]) < 1e-12:
         ver_texto("Error", ["El area total es 0. Revisa los huecos."])
         continue
-      m = mohr(T["IX"], T["IY"], T["IXY"])
-      vista(P, None, "X=" + f(T["X"]) + "  Y=" + f(T["Y"]), False, (T["X"], T["Y"]))
-      esperar()
-      dib_mohr(T["IX"], T["IY"], T["IXY"], m)
-      esperar()
-      ver_texto("Paso a paso", pasos_compuesta(P))
+      resultados(P)
     elif k == 3:
       vista(P, None, "Figura compuesta")
       esperar()
@@ -942,9 +938,23 @@ def mohr_directo():
   if elegir("Calcular Iu, Iv, Iuv para un angulo?", ["No", "Si"]) == 1:
     th = leer("Angulo theta en grados (antihorario)")
   m = mohr(Ix, Iy, Ixy, th)
-  dib_mohr(Ix, Iy, Ixy, m)
-  esperar()
-  ver_texto("Mohr paso a paso", pasos_mohr(Ix, Iy, Ixy, th))
+  sel = 0
+  while True:
+    k = elegir("MOHR: que quieres ver?", ["Dibujo del circulo", "Paso a paso", "Resumen", "Volver"], sel)
+    if k < 0 or k == 3:
+      return
+    sel = k
+    if k == 0:
+      dib_mohr(Ix, Iy, Ixy, m)
+      esperar()
+    elif k == 1:
+      pantalla_pasos("Mohr", pasos_mohr_calc(Ix, Iy, Ixy, m))
+    else:
+      R = [("C", f(m["C"])), ("R", f(m["R"])), ("Imax", f(m["Imax"])), ("Imin", f(m["Imin"])),
+           ("tp (grados)", f(m["tp"])), ("eje Imin", f(m["tp2"]))]
+      if th is not None:
+        R += [("Iu", f(m["Iu"])), ("Iv", f(m["Iv"])), ("Iuv", f(m["Iuv"]))]
+      resumen("Mohr directo", R)
 
 def formulario():
   sel = 0
@@ -959,6 +969,280 @@ def formulario():
     pie("[tecla] = ver formulas")
     esperar()
     ver_texto(t, fs + ([] if k == len(L) - 1 else COM))
+
+
+# =============================================================================
+#  RESULTADOS (calculadora): menu, tablas con cuadricula y paso a paso
+# =============================================================================
+CW = 7  # ancho aproximado de un caracter en pantalla (px)
+
+def tabla(tit, enc, filas, nfijas=1):
+  W = []
+  for j in range(len(enc)):
+    w = len(enc[j])
+    for r in filas:
+      w = max(w, len(r[j]))
+    W.append(w * CW + 8)
+  c0 = 0
+  r0 = 0
+  NR = 8
+  while True:
+    cab(tit)
+    cols = list(range(nfijas))
+    x = sum(W[:nfijas])
+    j = nfijas + c0
+    while j < len(enc) and x + W[j] <= 316:
+      cols.append(j)
+      x += W[j]
+      j += 1
+    hay_mas = j < len(enc)
+    ancho = x
+    y0 = 24
+    set_color(200, 220, 255)
+    fill_rect(1, y0, ancho, 18)
+    vis = filas[r0:r0 + NR]
+    for i in range(len(vis)):
+      if vis[i][0] in ("SUMA", "TOTAL"):
+        set_color(225, 240, 225)
+        fill_rect(1, y0 + 18 * (i + 1), ancho, 18)
+    set_color(0, 0, 0)
+    xx = 1
+    for j in cols:
+      draw_text(xx + 4, y0 + 14, enc[j])
+      for i in range(len(vis)):
+        t = vis[i][j]
+        if t[:1] == "-":
+          set_color(190, 0, 0)
+        draw_text(xx + 4, y0 + 18 * (i + 1) + 14, t)
+        set_color(0, 0, 0)
+      xx += W[j]
+    set_color(120, 120, 120)
+    for i in range(len(vis) + 2):
+      draw_line(1, y0 + 18 * i, ancho, y0 + 18 * i)
+    xx = 1
+    for j in cols + [None]:
+      draw_line(xx, y0, xx, y0 + 18 * (len(vis) + 1))
+      if j is not None:
+        xx += W[j]
+    flechas = ""
+    if c0 > 0:
+      flechas += "<- "
+    if hay_mas:
+      flechas += "-> mas columnas "
+    if r0 > 0 or r0 + NR < len(filas):
+      flechas += "arriba/abajo filas "
+    pie(flechas + "esc=volver")
+    k = get_key(1)
+    if k == "right" and hay_mas:
+      c0 += 1
+    elif k == "left" and c0 > 0:
+      c0 -= 1
+    elif k == "down" and r0 + NR < len(filas):
+      r0 += 1
+    elif k == "up" and r0 > 0:
+      r0 -= 1
+    elif k in ("esc", "enter"):
+      return
+
+def pantalla_pasos(tit, lineas):
+  # cada linea ya viene corta; las paginas no parten bloques si se puede
+  N = 10
+  pags = []
+  act = []
+  bloque = []
+  for s in lineas + [""]:
+    if s == "":
+      if len(act) + len(bloque) > N and act:
+        pags.append(act)
+        act = []
+      act += bloque + ([""] if bloque else [])
+      bloque = []
+    else:
+      bloque.append(s)
+  while len(act) > N:
+    pags.append(act[:N])
+    act = act[N:]
+  if act:
+    pags.append(act)
+  p = 0
+  while True:
+    cab(tit + "  (" + str(p + 1) + "/" + str(len(pags)) + ")")
+    for i in range(len(pags[p])):
+      s = pags[p][i]
+      if s[:1] == "#":
+        set_color(0, 0, 150)
+        s = s[1:]
+      elif s[:2] == "  ":
+        set_color(60, 60, 60)
+      draw_text(6, 38 + i * 17, s)
+      set_color(0, 0, 0)
+    pie("abajo/enter=sigue  arriba=atras  esc")
+    k = get_key(1)
+    if k in ("down", "right", "enter"):
+      if p + 1 < len(pags):
+        p += 1
+      elif k == "enter":
+        return
+    elif k in ("up", "left"):
+      p = max(0, p - 1)
+    elif k == "esc":
+      return
+
+def nombre_corto(p):
+  return nombre_fig(p["clave"]).split(" (")[0]
+
+def pasos_piezas(P):
+  L = []
+  for i in range(len(P)):
+    p = P[i]
+    g = calcular(p)
+    A, xc, yc, Ix, Iy, Ixy, Pl, V = forma(p["clave"], p["d"])
+    fo = FORM[p["clave"]]
+    L.append("#Pieza " + str(i + 1) + ": " + nombre_corto(p))
+    if p["clave"] != "poligono":
+      L.append("  " + ", ".join(n + "=" + f(v) for n, v in zip(params_fig(p["clave"]), p["d"])))
+    ex = []
+    if p["giro"] % 360:
+      ex.append("giro " + f(p["giro"] % 360))
+    if p["eh"]:
+      ex.append("espejo h")
+    if p["ev"]:
+      ex.append("espejo v")
+    if p["hueco"]:
+      ex.append("HUECO (resta)")
+    if ex:
+      L.append("  " + ", ".join(ex))
+    L.append("")
+    if p["clave"] != "poligono":
+      for nom, k, val in (("A", 0, A), ("Ixc", 3, Ix), ("Iyc", 4, Iy), ("Ixyc", 5, Ixy)):
+        L.append(nom + " = " + fo[k])
+        L.append("  = " + f(val))
+        L.append("")
+    else:
+      L += ["A, Ixc, Iyc, Ixyc con la", "formula de Gauss", ""]
+    if p["giro"] % 180 == 90:
+      L += ["Girada 90: Ixc <-> Iyc", "y Ixyc cambia de signo", ""]
+    if p["eh"] != p["ev"]:
+      L += ["Un espejo: Ixyc cambia", "de signo", ""]
+    if p["hueco"]:
+      L += ["Hueco: A e I van negativas", ""]
+    L += ["Centroide en la figura:", "  x = " + f(g["x"]) + "   y = " + f(g["y"]), "",
+          "Valores para la tabla:", "  A = " + f(g["A"]), "  Ixc = " + f(g["Ix"]),
+          "  Iyc = " + f(g["Iy"]), "  Ixyc = " + f(g["Ixy"]), ""]
+  return L
+
+def pasos_centroide(T):
+  return ["#Centroide de la figura", "",
+          "X = Suma(A*x) / Suma(A)", "  = " + f(T["SAx"]) + " / " + f(T["A"]), "  = " + f(T["X"]), "",
+          "Y = Suma(A*y) / Suma(A)", "  = " + f(T["SAy"]) + " / " + f(T["A"]), "  = " + f(T["Y"])]
+
+def pasos_steiner(G, T):
+  L = []
+  for i in range(len(G)):
+    g = G[i]
+    L += ["#Pieza " + str(i + 1),
+          "dx = x - X = " + f(g["x"]) + " - " + f(T["X"]), "  = " + f(g["dx"]),
+          "dy = y - Y = " + f(g["y"]) + " - " + f(T["Y"]), "  = " + f(g["dy"]), "",
+          "IX = Ixc + A*dy^2",
+          "  = " + f(g["Ix"]) + " + " + f(g["A"]) + "*(" + f(g["dy"]) + ")^2", "  = " + f(g["IX"]), "",
+          "IY = Iyc + A*dx^2",
+          "  = " + f(g["Iy"]) + " + " + f(g["A"]) + "*(" + f(g["dx"]) + ")^2", "  = " + f(g["IY"]), "",
+          "IXY = Ixyc + A*dx*dy",
+          "  = " + f(g["Ixy"]) + " + " + f(g["A"]), "    *(" + f(g["dx"]) + ")*(" + f(g["dy"]) + ")",
+          "  = " + f(g["IXY"]), ""]
+  L += ["#Sumas", "IX  = " + f(T["IX"]), "IY  = " + f(T["IY"]), "IXY = " + f(T["IXY"]),
+        "J = IX + IY = " + f(T["IX"] + T["IY"])]
+  return L
+
+def pasos_origen(T):
+  A, X, Y = T["A"], T["X"], T["Y"]
+  return ["#Respecto al origen (0, 0)", "",
+          "Ix = IX + A*Y^2", "  = " + f(T["IX"]) + " + " + f(A) + "*(" + f(Y) + ")^2",
+          "  = " + f(T["IX"] + A * Y * Y), "",
+          "Iy = IY + A*X^2", "  = " + f(T["IY"]) + " + " + f(A) + "*(" + f(X) + ")^2",
+          "  = " + f(T["IY"] + A * X * X), "",
+          "Ixy = IXY + A*X*Y", "  = " + f(T["IXY"]) + " + " + f(A), "    *(" + f(X) + ")*(" + f(Y) + ")",
+          "  = " + f(T["IXY"] + A * X * Y)]
+
+def pasos_mohr_calc(Ix, Iy, Ixy, m):
+  L = ["#Datos", "Ix = " + f(Ix), "Iy = " + f(Iy), "Ixy = " + f(Ixy), "",
+       "#Centro", "C = (Ix + Iy) / 2", "  = (" + f(Ix) + " + " + f(Iy) + ")/2", "  = " + f(m["C"]), "",
+       "#Radio", "R = sqrt( ((Ix-Iy)/2)^2 + Ixy^2 )",
+       "(Ix-Iy)/2 = " + f(m["D"]), "R = sqrt((" + f(m["D"]) + ")^2 + (" + f(Ixy) + ")^2)", "  = " + f(m["R"]), "",
+       "#Momentos principales", "Imax = C + R", "  = " + f(m["C"]) + " + " + f(m["R"]), "  = " + f(m["Imax"]),
+       "", "Imin = C - R", "  = " + f(m["C"]) + " - " + f(m["R"]), "  = " + f(m["Imin"]), "",
+       "#Angulo principal", "tan(2tp) = -2*Ixy / (Ix - Iy)", "  = -2*(" + f(Ixy) + ") / (" + f(Ix - Iy) + ")",
+       "tp = " + f(m["tp"]) + " grados -> eje Imax", "eje Imin: " + f(m["tp2"]) + " grados", "",
+       "#Comprobacion", "Imax + Imin = Ix + Iy", "  = " + f(Ix + Iy)]
+  if "Iu" in m:
+    L += ["", "#Ejes girados t = " + f(m["th"]) + " grados",
+          "Iu = C + (Ix-Iy)/2*cos2t", "     - Ixy*sin2t", "  = " + f(m["Iu"]), "",
+          "Iv = C - (Ix-Iy)/2*cos2t", "     + Ixy*sin2t", "  = " + f(m["Iv"]), "",
+          "Iuv = (Ix-Iy)/2*sin2t", "     + Ixy*cos2t", "  = " + f(m["Iuv"])]
+  return L
+
+def resumen(tit, filas):
+  cab(tit)
+  for i in range(len(filas)):
+    draw_text(10, 40 + i * 17, filas[i][0])
+    draw_text(120, 40 + i * 17, "= " + filas[i][1])
+  pie("[tecla] = volver")
+  esperar()
+
+def resultados(P):
+  G, T = resolver(P)
+  m = mohr(T["IX"], T["IY"], T["IXY"])
+  ops = ["Resumen", "Dibujo con centroide", "Datos de cada pieza", "Tabla: A, x, y, A*x, A*y",
+         "Calculo del centroide", "Tabla Steiner IX", "Tabla Steiner IY", "Tabla Steiner IXY",
+         "Steiner paso a paso", "Momentos respecto al origen", "Circulo de Mohr (dibujo)",
+         "Mohr paso a paso", "Volver"]
+  sel = 0
+  n = [str(i + 1) for i in range(len(G))]
+  while True:
+    k = elegir("RESULTADOS", ops, sel)
+    if k < 0 or k == len(ops) - 1:
+      return
+    sel = k
+    if k == 0:
+      resumen("Resumen", [("X", f(T["X"])), ("Y", f(T["Y"])), ("Area", f(T["A"])), ("IX", f(T["IX"])),
+                          ("IY", f(T["IY"])), ("IXY", f(T["IXY"])), ("J", f(T["IX"] + T["IY"])),
+                          ("Imax", f(m["Imax"])), ("Imin", f(m["Imin"])), ("tp (grados)", f(m["tp"]))])
+    elif k == 1:
+      vista(P, None, "X=" + f(T["X"]) + "  Y=" + f(T["Y"]), False, (T["X"], T["Y"]))
+      esperar()
+    elif k == 2:
+      pantalla_pasos("Datos de cada pieza", pasos_piezas(P))
+    elif k == 3:
+      F = [[n[i], f(G[i]["A"]), f(G[i]["x"]), f(G[i]["y"]), f(G[i]["A"] * G[i]["x"]),
+            f(G[i]["A"] * G[i]["y"])] for i in range(len(G))]
+      F.append(["SUMA", f(T["A"]), "", "", f(T["SAx"]), f(T["SAy"])])
+      tabla("Tabla de centroide", ["Pz", "A", "x", "y", "A*x", "A*y"], F)
+    elif k == 4:
+      pantalla_pasos("Centroide", pasos_centroide(T))
+    elif k == 5:
+      F = [[n[i], f(G[i]["Ix"]), f(G[i]["A"]), f(G[i]["dy"]), f(G[i]["A"] * G[i]["dy"] ** 2), f(G[i]["IX"])]
+           for i in range(len(G))]
+      F.append(["SUMA", "", "", "", "", f(T["IX"])])
+      tabla("Steiner IX", ["Pz", "Ixc", "A", "dy", "A*dy^2", "IX"], F)
+    elif k == 6:
+      F = [[n[i], f(G[i]["Iy"]), f(G[i]["A"]), f(G[i]["dx"]), f(G[i]["A"] * G[i]["dx"] ** 2), f(G[i]["IY"])]
+           for i in range(len(G))]
+      F.append(["SUMA", "", "", "", "", f(T["IY"])])
+      tabla("Steiner IY", ["Pz", "Iyc", "A", "dx", "A*dx^2", "IY"], F)
+    elif k == 7:
+      F = [[n[i], f(G[i]["Ixy"]), f(G[i]["A"]), f(G[i]["dx"]), f(G[i]["dy"]),
+            f(G[i]["A"] * G[i]["dx"] * G[i]["dy"]), f(G[i]["IXY"])] for i in range(len(G))]
+      F.append(["SUMA", "", "", "", "", "", f(T["IXY"])])
+      tabla("Steiner IXY", ["Pz", "Ixyc", "A", "dx", "dy", "A*dx*dy", "IXY"], F)
+    elif k == 8:
+      pantalla_pasos("Steiner", pasos_steiner(G, T))
+    elif k == 9:
+      pantalla_pasos("Respecto al origen", pasos_origen(T))
+    elif k == 10:
+      dib_mohr(T["IX"], T["IY"], T["IXY"], m)
+      esperar()
+    elif k == 11:
+      pantalla_pasos("Mohr", pasos_mohr_calc(T["IX"], T["IY"], T["IXY"], m))
 
 sel = 0
 while True:
